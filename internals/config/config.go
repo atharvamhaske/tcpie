@@ -11,7 +11,8 @@ type ServerConfig struct {
 }
 
 type PromethuesConfig struct {
-	Global struct {
+	MetricsPort int64 `koanf:"metrics_port"`
+	Global      struct {
 		ScrapeInterval   string `koanf:"scrape_interval"`
 		EvaluateInterval string `koanf:"evaluate_interval"`
 	} `koanf:"global"`

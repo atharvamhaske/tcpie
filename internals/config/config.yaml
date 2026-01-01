@@ -8,6 +8,7 @@ server:
   token_limit: 100
 
 prometheus:
+  metrics_port: 9090
   global:
     scrape_interval: 15s
     evaluation_interval: 15s
