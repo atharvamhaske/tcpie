@@ -38,7 +38,7 @@ func (e *MetricsExport) ExportMetrics() {
 	r.Path(e.Endpoint).Handler(promhttp.Handler())
 	log.Printf("Starting metrics exporter on port: %d", e.Port)
 
-	err := http.ListenAndServe(":"+ fmt.Sprintf("%d", e.Port), r)
+	err := http.ListenAndServe(":"+fmt.Sprintf("%d", e.Port), r)
 	log.Fatal(err)
 }
 
@@ -50,7 +50,7 @@ func NewServerMetrics() ServerMetrics {
 	return reqMetrics
 }
 
-func NewExportMetrics (port int64, endpoint string) MetricsExport {
+func NewExportMetrics(port int64, endpoint string) MetricsExport {
 	metrics := NewServerMetrics()
 	exporter := MetricsExport{Port: port}
 	exporter.Metrics = metrics
