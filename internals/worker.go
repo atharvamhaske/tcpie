@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-//Job is a task submitted by server to the worker pool
+// Job is a task submitted by server to the worker pool
 type Job struct {
 	Id   int
 	Conn net.Conn
@@ -19,9 +19,9 @@ type WorkerPool struct {
 	wg         *sync.WaitGroup
 }
 
-func(w *WorkerPool) NewWorkerPool() {
+func (w *WorkerPool) NewWorkerPool() {
 	w.wg = new(sync.WaitGroup)
-	w.JobChan = make(chan Job, w.MaxWorkers + w.QueueSize) //create new buffer channel of type Job
+	w.JobChan = make(chan Job, w.MaxWorkers+w.QueueSize) //create new buffer channel of type Job
 
 	for i := 0; i < w.MaxWorkers; i++ {
 		w.wg.Add(1)
@@ -30,7 +30,7 @@ func(w *WorkerPool) NewWorkerPool() {
 	}
 }
 
-//worker is a thread which processes the requests
+// worker is a thread which processes the requests
 func (w *WorkerPool) worker(workerId int) {
 	processRequests := func(j Job) {
 		request := make([]byte, 1024)
@@ -42,19 +42,19 @@ func (w *WorkerPool) worker(workerId int) {
 
 	for job := range w.JobChan {
 		log.Printf("Worker %d, processing request %d", workerId, job.Id)
-	    processRequests(job)
+		processRequests(job)
 	}
 
 	w.wg.Done()
 }
 
 // SubmitJob puts the job into the channel and idle worker picks up
-func (w* WorkerPool) SubmitJob(j Job) {
+func (w *WorkerPool) SubmitJob(j Job) {
 	w.JobChan <- j
 }
 
 // Close closes the channel and wait for all the workers to finish
-func (w* WorkerPool) Close() {
+func (w *WorkerPool) Close() {
 	close(w.JobChan)
 	w.wg.Wait()
 }

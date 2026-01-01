@@ -40,7 +40,7 @@ func (tb *TokenBucket) refillBucket() {
 }
 
 // method to check is request allowed or should be dropped
-func (tb *TokenBucket) isReqAllowed() bool {
+func (tb *TokenBucket) IsReqAllowed() bool {
 	tb.Mutex.Lock()
 	defer tb.Mutex.Unlock()
 
