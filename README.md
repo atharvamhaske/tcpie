@@ -8,24 +8,23 @@ A high-performance TCP server built from scratch in Go featuring concurrent requ
 
 ```bash
 # From project root
-
 go run cmd/main.go
+```
 
-### 3. Test the TCP Server
+### 2. Test the TCP Server
 
 **Using curl:**
+
 ```bash
 curl http://localhost:8080
 ```
 
-### 4. Check Metrics
-
+### 3. Check Metrics
 
 **Raw Prometheus Format (for scraping):**
 ```bash
 curl http://localhost:9090/metrics
 ```
-
 
 ## Project Structure
 
