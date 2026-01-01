@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 // Job is a task submitted by server to the worker pool
@@ -33,11 +34,23 @@ func (w *WorkerPool) NewWorkerPool() {
 // worker is a thread which processes the requests
 func (w *WorkerPool) worker(workerId int) {
 	processRequests := func(j Job) {
+		defer j.Conn.Close() // Always close connection when done
+
+		// Set read deadline to prevent hanging (2 seconds)
+		j.Conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
 		request := make([]byte, 1024)
-		j.Conn.Read(request)
+		_, err := j.Conn.Read(request)
+		if err != nil {
+			// Timeout or read error - just close and continue
+			return
+		}
+
+		// Set write deadline
+		j.Conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+
 		response := []byte("HTTP/1.1 200 OK\r\n\r\n Hello world ! \r\n")
 		j.Conn.Write(response)
-		j.Conn.Close()
 	}
 
 	for job := range w.JobChan {

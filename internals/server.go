@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/atharvamhaske/tcpie/internals/metrics"
-	"github.com/atharvamhaske/tcpie/internals/rate-limiter"
+	ratelimiter "github.com/atharvamhaske/tcpie/internals/rate-limiter"
 )
 
 // for accepting tcp connections
@@ -56,18 +56,29 @@ func (s *Server) handleRequest() {
 	for {
 		client, err := s.Listener.Accept() //accept clients
 		conn++
-		log.Printf("client connected %d", conn)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
-		log.Println("processing the request")
 
-		if s.reqLimiter != (ratelimiter.TokenBucket{}) && s.reqLimiter.IsReqAllowed() {
+		if s.reqLimiter != (ratelimiter.TokenBucket{}) && !s.reqLimiter.IsReqAllowed() {
+			response := []byte("HTTP/1.1 429 Too Many Requests\r\n\r\n Rate limit exceeded \r\n")
+			client.Write(response)
+			client.Close()
+			log.Printf("Request %d rate limited", conn)
+			continue
+		}
+
+		//submit job non-blocking - if channel is full, reject immediately
+		select {
+		case s.JobChan <- Job{Id: conn, Conn: client}:
+			// Job accepted - increment metrics
 			s.Metrics.Requests.WithLabelValues("processed").Inc()
-			s.SubmitJob(Job{
-				Id:   conn,
-				Conn: client,
-			})
+		default:
+			// Channel full - all workers busy and queue full, reject request
+			response := []byte("HTTP/1.1 503 Service Unavailable\r\n\r\n Server busy, try again later \r\n")
+			client.Write(response)
+			client.Close()
+			log.Printf("Request %d rejected - server busy (queue full)", conn)
 		}
 	}
 }

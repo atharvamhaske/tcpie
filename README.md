@@ -42,7 +42,6 @@ tcpie/
 │   │   └── rate-limiter.go  # Token bucket rate limiter
 │   ├── server.go            # TCP server implementation
 │   └── worker.go            # Worker pool implementation
-├── Makefile                 # Build tasks
 └── README.md               # This file
 ```
 
