@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"log"
 	"net/url"
 	"strings"
@@ -9,24 +10,21 @@ import (
 	"github.com/atharvamhaske/tcpie/internals/config"
 	"github.com/atharvamhaske/tcpie/internals/metrics"
 	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/knadh/koanf/v2"
 )
 
 func main() {
-
 	//load all configs using koanf
 	k := koanf.New(".")
-	configPath := "./internals/config/config.yaml"
-
-	if err := k.Load(file.Provider(configPath), yaml.Parser()); err != nil {
+	if err := k.Load(rawbytes.Provider(bytes.TrimSpace(config.ConfigFile)), yaml.Parser()); err != nil {
 		log.Fatalf("error while loading config: %v", err)
 	}
 
 	var serverCfg config.ServerConfig
 	if err := k.Unmarshal("server", &serverCfg); err != nil {
 		log.Fatalf("error unmarshaling server config: %v", err)
-	} //parse
+	}
 
 	var promCfg config.PromethuesConfig
 	if err := k.Unmarshal("prometheus", &promCfg); err != nil {

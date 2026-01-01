@@ -1,5 +1,12 @@
 package config
 
+import (
+	_ "embed"
+)
+
+//go:embed config.yaml
+var ConfigFile []byte
+
 type ServerConfig struct {
 	URL        string `koanf:"url"`
 	Name       string `koanf:"name"`
