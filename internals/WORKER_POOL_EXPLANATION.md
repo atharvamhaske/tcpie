@@ -1,9 +1,9 @@
 # Worker Pool Architecture Explanation
 
-> **Note**: This document contains Mermaid diagrams with ASCII art alternatives.
-> - **If Mermaid renders**: You'll see interactive diagrams
-> - **If Mermaid doesn't render**: Scroll down to see ASCII art alternatives below each diagram
-> - **For best Mermaid viewing**: GitHub/GitLab render automatically, VS Code needs "Markdown Preview Mermaid Support" extension
+> **Note**: This document contains Mermaid diagrams. For best viewing:
+> - GitHub/GitLab: Diagrams render automatically
+> - VS Code: Install "Markdown Preview Mermaid Support" extension
+> - Other viewers: May need Mermaid.js support enabled
 
 ## Overview
 
@@ -37,7 +37,6 @@ type WorkerPool struct {
 
 ## Architecture Diagram
 
-**Mermaid Diagram:**
 ```mermaid
 graph TB
     Client[Client Connections]
@@ -54,36 +53,6 @@ graph TB
     W1 -->|Done| WG
     W2 -->|Done| WG
     W3 -->|Done| WG
-```
-
-**ASCII Art Alternative:**
-```
-                    Client Connections
-                           |
-                           | SubmitJob
-                           v
-                    ┌──────────────┐
-                    │  Job Channel │
-                    │ (Buffered)   │
-                    └──────────────┘
-                           |
-            ┌───────────────┼───────────────┐
-            |               |               |
-      Distribute      Distribute      Distribute
-            |               |               |
-            v               v               v
-    ┌──────────┐    ┌──────────┐    ┌──────────┐
-    │ Worker 1 │    │ Worker 2 │    │ Worker N │
-    │ Goroutine│    │ Goroutine│    │ Goroutine│
-    └──────────┘    └──────────┘    └──────────┘
-            |               |               |
-            └───────────────┼───────────────┘
-                           | Done
-                           v
-                    ┌──────────────┐
-                    │  WaitGroup   │
-                    │Synchronization│
-                    └──────────────┘
 ```
 
 ---
@@ -106,7 +75,6 @@ JobChan = make(chan Job, w.MaxWorkers + w.QueueSize)
 
 ### Channel Flow Diagram
 
-**Mermaid Diagram:**
 ```mermaid
 sequenceDiagram
     participant Server
@@ -129,30 +97,6 @@ sequenceDiagram
     Channel->>W1: Job3 Worker picks up
     
     Note over Channel: Pattern repeats
-```
-
-**ASCII Art Alternative:**
-```
-Time    Server          Channel              Worker 1        Worker 2
-─────────────────────────────────────────────────────────────────────
-T0      |               | (Empty)            | (Waiting)      | (Waiting)
-        |               | Capacity = N       |                |
-        |               |                    |                |
-T1      |--SubmitJob1-->|                    |                |
-        |               |--Job1------------->|                |
-        |               |                    | (Processing)   |
-        |               |                    |                |
-T2      |--SubmitJob2-->|                    |                |
-        |               |--Job2------------------------------->|
-        |               |                    |                | (Processing)
-        |               |                    |                |
-T3      |--SubmitJob3-->|                    |                |
-        |               | (Job3 queued)       |                |
-        |               |                    |                |
-T4      |               |<--Finished Job1----|                |
-        |               |                    |                |
-        |               |--Job3------------->|                |
-        |               |                    | (Processing)   |
 ```
 
 ---
@@ -185,7 +129,6 @@ func (w *WorkerPool) worker(workerId int) {
 
 ### Worker Lifecycle
 
-**Mermaid Diagram:**
 ```mermaid
 stateDiagram-v2
     [*] --> Created: NewWorkerPool called
@@ -197,40 +140,8 @@ stateDiagram-v2
     Terminated --> [*]: wg.Done called
 ```
 
-**ASCII Art Alternative:**
-```
-    [*] (Start)
-      |
-      | NewWorkerPool called
-      v
-   Created
-      |
-      | goroutine started
-      v
-   Running
-      |
-      | No jobs in channel
-      v
-   Waiting ←──────────┐
-      |               |
-      | Job received  | Job completed
-      v               |
-  Processing          |
-      |               |
-      └───────────────┘
-      |
-      | Channel closed
-      v
-  Terminated
-      |
-      | wg.Done called
-      v
-    [*] (End)
-```
-
 ### Worker Execution Flow
 
-**Mermaid Diagram:**
 ```mermaid
 flowchart TD
     Start([Worker Goroutine Starts]) --> Loop{Channel Has Job?}
@@ -247,62 +158,12 @@ flowchart TD
     Done --> End([Worker Terminates])
 ```
 
-**ASCII Art Alternative:**
-```
-                    [Worker Goroutine Starts]
-                              |
-                              v
-                    ┌─────────────────────┐
-                    │ Channel Has Job?    │
-                    └─────────────────────┘
-                     /                    \
-                    Yes                   No
-                     |                     |
-                     v                     v
-            [Receive Job]          [Block Waiting]
-                     |                     |
-                     └──────────┬──────────┘
-                                |
-                                v
-                    [Log: Worker X processing Job Y]
-                                |
-                                v
-                    [Read Request from Connection]
-                                |
-                                v
-                        [Process Request]
-                                |
-                                v
-                        [Write Response]
-                                |
-                                v
-                        [Close Connection]
-                                |
-                                └───┐
-                                    │
-                    ┌────────────────┘
-                    │
-                    v
-            ┌─────────────────────┐
-            │ Channel Closed?     │
-            └─────────────────────┘
-                    |
-                    Yes
-                    |
-                    v
-            [Call wg.Done]
-                    |
-                    v
-            [Worker Terminates]
-```
-
 ---
 
 ## Worker Pool Lifecycle
 
 ### Initialization Phase
 
-**Mermaid Diagram:**
 ```mermaid
 sequenceDiagram
     participant Main
@@ -325,40 +186,8 @@ sequenceDiagram
     Note over WP,W1: All workers ready waiting for jobs
 ```
 
-**ASCII Art Alternative:**
-```
-Main Program    WorkerPool    WaitGroup    Worker 1    Worker 2    Worker N
-─────────────────────────────────────────────────────────────────────────────
-     |               |             |           |           |           |
-     | NewWorkerPool |             |           |           |           |
-     |──────────────>|             |           |           |           |
-     |               |             |           |           |           |
-     |               | new sync.WaitGroup      |           |           |
-     |               |────────────>|           |           |           |
-     |               |             |           |           |           |
-     |               | Create buffered channel |           |           |
-     |               | (MaxWorkers + QueueSize)|           |           |
-     |               |<────────────|           |           |           |
-     |               |             |           |           |           |
-     |               | For each worker (loop): |           |           |
-     |               |             |           |           |           |
-     |               | wg.Add(1)   |           |           |           |
-     |               |────────────>|           |           |           |
-     |               |             |           |           |           |
-     |               | go worker(i)|           |           |           |
-     |               |────────────────────────>|          |           |
-     |               |             |           | (starts, |           |
-     |               |             |           | blocks)  |           |
-     |               |             |           |           |           |
-     |               | (repeat for each worker)            |           |
-     |               |             |           |           |           |
-     |               |             |           |           |           |
-     |               | All workers ready, waiting for jobs |           |
-```
-
 ### Job Submission Flow
 
-**Mermaid Diagram:**
 ```mermaid
 flowchart LR
     A[Server Receives Connection] --> B[Create Job with ID and Conn]
@@ -371,40 +200,8 @@ flowchart LR
     G --> H[Process Job]
 ```
 
-**ASCII Art Alternative:**
-```
-Job Submission Flow:
-
-1. Server Receives Connection
-         |
-         v
-2. Create Job with ID & Conn
-         |
-         v
-3. SubmitJob()
-         |
-         v
-    ┌─────────────┐
-    │Channel Full?│
-    └─────────────┘
-     /           \
-    No           Yes
-     |            |
-     v            v
-Add to Channel  Block Until Space
-     |            |
-     └─────┬──────┘
-           |
-           v
-4. Idle Worker Receives
-           |
-           v
-5. Process Job
-```
-
 ### Shutdown Phase
 
-**Mermaid Diagram:**
 ```mermaid
 sequenceDiagram
     participant Main
@@ -426,47 +223,6 @@ sequenceDiagram
     WP->>WG: wg.Wait
     Note over WG: Blocks until all workers done
     WG->>Main: All workers terminated
-```
-
-**ASCII Art Alternative:**
-```
-Main    WorkerPool    Channel    Worker 1    Worker 2    WaitGroup
-─────────────────────────────────────────────────────────────────────
- |          |            |           |           |           |
- | Close()  |            |           |           |           |
- |─────────>|            |           |           |           |
- |          |            |           |           |           |
- |          | close(JobChan)         |           |           |
- |          |───────────>|           |           |           |
- |          |            |           |           |           |
- |          |            | (Channel closed -    |           |
- |          |            |  no more jobs)       |           |
- |          |            |           |           |           |
- |          |            | Signal: channel closed           |
- |          |            |───────────>|          |           |
- |          |            |───────────────>|      |           |
- |          |            |           |           |           |
- |          |            |           | Finish current job    |
- |          |            |           |<──────────|           |
- |          |            |           |           |           |
- |          |            |           |           | Finish current job
- |          |            |           |           |<──────────|
- |          |            |           |           |           |
- |          |            |           | wg.Done()            |
- |          |            |           |──────────────────────>|
- |          |            |           |           |           |
- |          |            |           |           | wg.Done()
- |          |            |           |           |──────────────────>|
- |          |            |           |           |           |
- |          |            |           |           |           | wg.Wait()
- |          |            |           |           |           |<────────|
- |          |            |           |           |           |
- |          |            |           |           |           | (blocks)
- |          |            |           |           |           |
- |          |            |           |           |           | All done
- |          |            |           |           |           |─────────>|
- |          |            |           |           |           |
- |<─────────|            |           |           |           |
 ```
 
 ---
@@ -494,7 +250,6 @@ Main    WorkerPool    Channel    Worker 1    Worker 2    WaitGroup
 
 ### Channel Blocking Behavior
 
-**Mermaid Diagram:**
 ```mermaid
 graph LR
     S1[Job Sent] --> S2{Channel Full?}
@@ -511,34 +266,8 @@ graph LR
     style R4 fill:#FFB6C1
 ```
 
-**ASCII Art Alternative:**
-```
-Send Operation (SubmitJob):
-    Job Sent
-      |
-      v
-  Channel Full?
-   /        \
-  No        Yes
-   |         |
-   v         v
-Non-blocking  Block until space
-
-Receive Operation (Worker):
-  Worker Waiting
-      |
-      v
-  Channel Empty?
-   /        \
-  No        Yes
-   |         |
-   v         v
-Receive immediately  Block until job arrives
-```
-
 ### WaitGroup Synchronization
 
-**Mermaid Diagram:**
 ```mermaid
 graph TD
     Start[NewWorkerPool] --> Add[wg.Add for each worker]
@@ -549,39 +278,6 @@ graph TD
     Workers --> Done[Each calls wg.Done]
     Done --> WaitAll[wg.Wait blocks]
     WaitAll --> Complete[All workers done]
-```
-
-**ASCII Art Alternative:**
-```
-Initialization:
-    NewWorkerPool
-         |
-         v
-    wg.Add for each worker
-         |
-         v
-    Spawn N goroutines
-         |
-         v
-    Workers running (waiting for jobs)
-
-Shutdown:
-    Close called
-         |
-         v
-    Close channel
-         |
-         v
-    Workers finish current jobs
-         |
-         v
-    Each worker calls wg.Done
-         |
-         v
-    wg.Wait blocks (waits for all)
-         |
-         v
-    All workers done (shutdown complete)
 ```
 
 ---
@@ -612,14 +308,6 @@ gantt
     Job 3 Queued      :5, 1
     Job 4 Queued      :6, 1
 ```
-
-**Note**: If the Gantt chart doesn't render, here's a text timeline:
-- **Time 0-1s**: Worker 1 waiting, Worker 2 waiting, Job 1 queued
-- **Time 1-2s**: Worker 1 processing Job 1, Worker 2 processing Job 2, Job 2 queued
-- **Time 2-5s**: Worker 1 processing Job 1, Worker 2 processing Job 2
-- **Time 5-6s**: Worker 1 waiting, Worker 2 waiting, Job 3 queued
-- **Time 6-7s**: Worker 1 processing Job 3, Worker 2 waiting, Job 4 queued
-- **Time 7-9s**: Worker 1 processing Job 3, Worker 2 processing Job 4
 
 ---
 
