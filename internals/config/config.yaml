@@ -1,0 +1,19 @@
+server:
+  url: http://localhost
+  name: my-server
+  port: 8080
+  workers: 8
+  queue_size: 100
+  token_rate: 10
+  token_limit: 100
+
+prometheus:
+  global:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+
+  scrape_configs:
+    - job_name: "tcpie-app"
+      metrics_path: "/metrics"
+      static_configs:
+        - targets: ["localhost:8080"]
