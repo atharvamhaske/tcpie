@@ -20,19 +20,22 @@ type WorkerPool struct {
 	wg         *sync.WaitGroup
 }
 
-func (w *WorkerPool) NewWorkerPool() {
-	w.wg = new(sync.WaitGroup)
-	// Channel size = QueueSize (workers consume from channel, so channel only holds queued jobs)
-	w.JobChan = make(chan Job, w.MaxWorkers+w.QueueSize)
-
+func NewWorkerPool(maxWorkers, queueSize int) *WorkerPool {
+	w := &WorkerPool{
+		MaxWorkers: maxWorkers,
+		QueueSize:  queueSize,
+		JobChan:    make(chan Job),
+		wg:         new(sync.WaitGroup),
+	}
 	for i := 0; i < w.MaxWorkers; i++ {
 		w.wg.Add(1)
-		log.Printf("Starting worker %d", i)
 		go w.worker(i)
 	}
+	return w
 }
 
-// worker is a thread which processes the requests
+// worker is a thread which processes the requests, ye jab tak maxworkers hai tab tak
+// usko wo job execute krne dete hai
 func (w *WorkerPool) worker(workerId int) {
 	processRequests := func(j Job) {
 		// Set read deadline to prevent hanging (3 seconds)
