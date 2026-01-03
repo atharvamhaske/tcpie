@@ -63,17 +63,15 @@ func main() {
 		Tokens:     int64(serverCfg.TokenLimit),
 	}
 
-	//create server object
-	serverObject := &server.Server{
-		Port:    serverCfg.Port,
-		URL:     serverURL,
-		Opts:    opts,
-		Metrics: exporter.Metrics,
+	// Create server using NewServer (initializes all components)
+	serverObject, err := server.NewServer(serverURL, serverCfg.Port, opts, exporter.Metrics)
+	if err != nil {
+		log.Fatalf("failed to create server: %v", err)
 	}
 
 	go exporter.ExportMetrics()
 	log.Println("server and metrics exporter starting...")
 
-	//start the TCP server (which blocks)
-	serverObject.FireUpTheServer()
+	// Start the TCP server (which blocks)
+	serverObject.Start()
 }
