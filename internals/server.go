@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync/atomic"
 
 	"github.com/atharvamhaske/tcpie/internals/metrics"
 	ratelimiter "github.com/atharvamhaske/tcpie/internals/rate-limiter"
@@ -27,72 +28,110 @@ type ServerOpts struct {
 	QueueSize  int
 }
 
-func (s *Server) createListener() {
-	log.Println("creating a listener")
-	addr := s.URL + ":" + fmt.Sprintf("%d", s.Port)
-	socket, err := net.Listen("tcp", addr)
+// createListener creates a TCP listener for the given address
+func createListener(url string, port int) (net.Listener, error) {
+	addr := fmt.Sprintf("%s:%d", url, port)
+
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatalf("server connection failed with %v", err)
+		return nil, fmt.Errorf("failed to create listener on %s: %w", addr, err)
 	}
-	s.Listener = socket
+
+	return listener, nil
 }
 
-func (s *Server) createThreadPool() {
-	log.Println("creating thread pool")
-	s.WorkerPool = WorkerPool{MaxWorkers: s.Opts.MaxThreads, QueueSize: s.Opts.QueueSize}
-	s.NewWorkerPool()
+func createWorkerPool(maxWorkers, queueSize int) *WorkerPool {
+	return NewWorkerPool(maxWorkers, queueSize)
 }
 
-func (s *Server) createRateLimiter(rate, token int64) {
-	log.Println("creating a rate limiter")
-	s.reqLimiter = ratelimiter.RateLimiter(rate, token)
+func createRateLimiter(rate, tokens int64) ratelimiter.TokenBucket {
+	return ratelimiter.RateLimiter(rate, tokens)
 }
 
-func (s *Server) handleRequest() {
+func handleRequests(s *Server) {
 	log.Println("start handling requests")
 
-	conn := 0
+	var connCount int64
 
 	for {
-		client, err := s.Listener.Accept() //accept clients
-		conn++
+		client, err := s.Listener.Accept()
 		if err != nil {
-			log.Fatalf("%v", err)
+			log.Fatalf("accept error: %v", err)
 		}
 
-		// Check rate limiter if it's configured (MaxTokens > 0 means it's initialized)
+		connID := atomic.AddInt64(&connCount, 1)
+
+		// Check rate limiter if configured
 		if s.reqLimiter.MaxTokens > 0 && !s.reqLimiter.IsReqAllowed() {
 			response := []byte("HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\nContent-Length: 20\r\n\r\nRate limit exceeded")
 			client.Write(response)
 			client.Close()
-			log.Printf("Request %d rate limited", conn)
+			log.Printf("Request %d rate limited", connID)
 			continue
 		}
 
-		//submit job non-blocking - if channel is full, reject immediately
-		select {
-		case s.JobChan <- Job{Id: conn, Conn: client}:
-			// Job accepted - increment metrics
-			s.Metrics.Requests.WithLabelValues("processed").Inc()
-		default:
-			// Channel full - all workers busy and queue full, reject request
-			response := []byte("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 28\r\n\r\nServer busy, try again later")
-			client.Write(response)
-			client.Close()
-			log.Printf("Request %d rejected - server busy (queue full)", conn)
-		}
+		// Submit job to worker pool (non-blocking)
+		// Handle panic if channel is closed
+		job := Job{Id: int(connID), Conn: client}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					// Channel is closed - server is shutting down
+					response := []byte("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 28\r\n\r\nServer shutting down")
+					client.Write(response)
+					client.Close()
+					log.Printf("Request %d rejected - server shutting down", connID)
+				}
+			}()
+
+			select {
+			case s.JobChan <- job:
+				// Job accepted - increment metrics
+				s.Metrics.Requests.WithLabelValues("processed").Inc()
+			default:
+				// Worker pool is full - reject request
+				response := []byte("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 28\r\n\r\nServer busy, try again later")
+				client.Write(response)
+				client.Close()
+				log.Printf("Request %d rejected - server busy (queue full)", connID)
+			}
+		}()
 	}
+}
+
+// NewServer creates a new server instance with all components initialized
+func NewServer(url string, port int, opts ServerOpts, metrics metrics.ServerMetrics) (*Server, error) {
+	// Create listener
+	listener, err := createListener(url, port)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create listener: %w", err)
+	}
+
+	// Create worker pool
+	workerPool := createWorkerPool(opts.MaxThreads, opts.QueueSize)
+
+	// Create rate limiter
+	rateLimiter := createRateLimiter(opts.Rate, opts.Tokens)
+
+	return &Server{
+		WorkerPool: *workerPool,
+		Port:       port,
+		URL:        url,
+		Opts:       opts,
+		Metrics:    metrics,
+		Listener:   listener,
+		reqLimiter: rateLimiter,
+	}, nil
+}
+
+// Start starts the server and begins handling requests (blocks)
+func (s *Server) Start() {
+	log.Printf("Starting server on %s:%d", s.URL, s.Port)
+	handleRequests(s)
 }
 
 // Close closes the socket listener and worker pool
 func (s *Server) Close() {
 	s.Listener.Close()
 	s.WorkerPool.Close()
-}
-
-func (s *Server) FireUpTheServer() {
-	s.createListener()
-	s.createThreadPool()
-	s.createRateLimiter(s.Opts.Rate, s.Opts.Tokens)
-	s.handleRequest()
 }

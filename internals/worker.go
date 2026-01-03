@@ -24,7 +24,7 @@ func NewWorkerPool(maxWorkers, queueSize int) *WorkerPool {
 	w := &WorkerPool{
 		MaxWorkers: maxWorkers,
 		QueueSize:  queueSize,
-		JobChan:    make(chan Job),
+		JobChan:    make(chan Job, maxWorkers+queueSize), // Channel size = MaxWorkers + QueueSize
 		wg:         new(sync.WaitGroup),
 	}
 	for i := 0; i < w.MaxWorkers; i++ {
