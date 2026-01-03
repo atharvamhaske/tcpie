@@ -56,8 +56,8 @@ func (w *WorkerPool) worker(workerId int) {
 		j.Conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 
 		// Send proper HTTP response with Connection: close header
-		// Content-Length must match actual body length (13 bytes: "Hello world !")
-		response := []byte("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 13\r\n\r\nHello world !")
+		// Content-Length must match actual body length (14 bytes: "Hello world !\n")
+		response := []byte("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 14\r\n\r\nHello world !\n")
 		bytesWritten, writeErr := j.Conn.Write(response)
 		if writeErr != nil || bytesWritten != len(response) {
 			// Write failed or incomplete, close and return
