@@ -60,8 +60,9 @@ func (s *Server) handleRequest() {
 			log.Fatalf("%v", err)
 		}
 
-		if s.reqLimiter != (ratelimiter.TokenBucket{}) && !s.reqLimiter.IsReqAllowed() {
-			response := []byte("HTTP/1.1 429 Too Many Requests\r\n\r\n Rate limit exceeded \r\n")
+		// Check rate limiter if it's configured (MaxTokens > 0 means it's initialized)
+		if s.reqLimiter.MaxTokens > 0 && !s.reqLimiter.IsReqAllowed() {
+			response := []byte("HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\nContent-Length: 20\r\n\r\nRate limit exceeded")
 			client.Write(response)
 			client.Close()
 			log.Printf("Request %d rate limited", conn)
@@ -75,7 +76,7 @@ func (s *Server) handleRequest() {
 			s.Metrics.Requests.WithLabelValues("processed").Inc()
 		default:
 			// Channel full - all workers busy and queue full, reject request
-			response := []byte("HTTP/1.1 503 Service Unavailable\r\n\r\n Server busy, try again later \r\n")
+			response := []byte("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 28\r\n\r\nServer busy, try again later")
 			client.Write(response)
 			client.Close()
 			log.Printf("Request %d rejected - server busy (queue full)", conn)

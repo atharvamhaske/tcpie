@@ -2,10 +2,10 @@ server:
   url: http://localhost
   name: my-server
   port: 8080
-  workers: 8
-  queue_size: 100
-  token_rate: 10
-  token_limit: 100
+  workers: 2
+  queue_size: 5
+  token_rate: 2
+  token_limit: 5
 
 prometheus:
   metrics_port: 9090

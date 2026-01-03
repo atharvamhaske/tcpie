@@ -22,7 +22,8 @@ type WorkerPool struct {
 
 func (w *WorkerPool) NewWorkerPool() {
 	w.wg = new(sync.WaitGroup)
-	w.JobChan = make(chan Job, w.MaxWorkers+w.QueueSize) //create new buffer channel of type Job
+	// Channel size = QueueSize (workers consume from channel, so channel only holds queued jobs)
+	w.JobChan = make(chan Job, w.MaxWorkers+w.QueueSize)
 
 	for i := 0; i < w.MaxWorkers; i++ {
 		w.wg.Add(1)
@@ -34,23 +35,36 @@ func (w *WorkerPool) NewWorkerPool() {
 // worker is a thread which processes the requests
 func (w *WorkerPool) worker(workerId int) {
 	processRequests := func(j Job) {
-		defer j.Conn.Close() // Always close connection when done
+		// Set read deadline to prevent hanging (3 seconds)
+		j.Conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 
-		// Set read deadline to prevent hanging (2 seconds)
-		j.Conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-
-		request := make([]byte, 1024)
+		request := make([]byte, 4096)
 		_, err := j.Conn.Read(request)
 		if err != nil {
-			// Timeout or read error - just close and continue
+			// Timeout or read error - send error response before closing
+			j.Conn.SetWriteDeadline(time.Now().Add(1 * time.Second))
+			errorResponse := []byte("HTTP/1.1 408 Request Timeout\r\nConnection: close\r\nContent-Length: 0\r\n\r\n")
+			j.Conn.Write(errorResponse)
+			j.Conn.Close()
 			return
 		}
 
-		// Set write deadline
+		// Set write deadline before sending response
 		j.Conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 
-		response := []byte("HTTP/1.1 200 OK\r\n\r\n Hello world ! \r\n")
-		j.Conn.Write(response)
+		// Send proper HTTP response with Connection: close header
+		// Content-Length must match actual body length (13 bytes: "Hello world !")
+		response := []byte("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 13\r\n\r\nHello world !")
+		bytesWritten, writeErr := j.Conn.Write(response)
+		if writeErr != nil || bytesWritten != len(response) {
+			// Write failed or incomplete, close and return
+			j.Conn.Close()
+			return
+		}
+
+		// Close connection - TCP default behavior will send all pending data
+		// before closing, ensuring curl receives the complete response
+		j.Conn.Close()
 	}
 
 	for job := range w.JobChan {
