@@ -1,30 +1,14 @@
-# TCP Server from Scratch (tcpie)
+# TCPie
 
-A high-performance TCP server built from scratch in Go featuring concurrent request handling via worker pools, token bucket rate limiting, and Prometheus metrics integration.
+> **a basic TCP server that handles multiple concurrent connections**
 
-## Quick Start
+![tcpie](public/tcpie.png)
 
-### 1. Run the Server
+High-performant TCP server built from scratch in Go that handles concurrent connections using a worker pool pattern with buffered channels. The server accepts TCP connections, applies token bucket rate limiting to control request throughput, and distributes incoming jobs to a pool of worker goroutines for parallel processing. Each worker reads HTTP requests, processes them, and sends responses back through the connection before closing it. 
+Prometheus metrics are exposed on a separate HTTP endpoint to monitor request counts, rate limiting events, and server performance in real-time.
 
-```bash
-# From project root
-go run cmd/main.go
-```
-
-### 2. Test the TCP Server
-
-**Using curl:**
-
-```bash
-curl http://localhost:8080
-```
-
-### 3. Check Metrics
-
-**Raw Prometheus Format (for scraping):**
-```bash
-curl http://localhost:9090/metrics
-```
+Made this tiny side project just to play with worker pool pattern of concurrency model with TCP !!
+If you like this pls give a star to repo.
 
 ## Project Structure
 
